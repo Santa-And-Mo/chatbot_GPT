@@ -19,6 +19,7 @@ async def default_callback_handler(update: Update,
 
 # Головне меню
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "default"
     text = load_message('main')
     await send_image(update, context, 'main')
     await send_text(update, context, text)
@@ -35,6 +36,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # цікавий факт від GPT
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "random"
     text = load_message("random")
     await send_image(update, context, "random")
     await send_text(update, context, text)
