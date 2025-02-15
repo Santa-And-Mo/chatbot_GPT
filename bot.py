@@ -1,21 +1,38 @@
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, CommandHandler, MessageHandler, filters
-
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, CommandHandler, MessageHandler, filters, \
+    ConversationHandler
 from gpt import ChatGptService
 from util import (load_message, send_text, send_image, show_main_menu, load_prompt, send_text_buttons, Dialog)
 
 import credentials
 
-# обробка кнопок на сторінці "Випадковий факт"
+# обробка кнопок
 async def default_callback_handler(update: Update,
                                    context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     query = update.callback_query.data
-    if query == "more_btn":            # Кнопка "Хочу ще факт"
-        await random(update, context)
-    elif query == "end_btn":            # Кнопка "Закінчити"
-        await start(update, context)   # Перехід в меню Start"
-
+    if dialog.mode == "random":
+        if query == "more_btn":            # Кнопка "Хочу ще факт"
+            await random(update, context)
+        elif query == "end_btn":            # Кнопка "Закінчити"
+            await start(update, context)   # Перехід в меню Start"
+    elif dialog.mode == "talk":
+        if query == "cobain_talk_btn":
+            dialog.mode = "cobain_talk"
+            await talk_cobain(update, context)
+        elif query == "hawking_talk_btn":
+            dialog.mode = "hawking_talk"
+            await talk_hawking(update, context)
+        elif query == "nietzsche_talk_btn":
+            await talk_nietzsche(update, context)
+        elif query == "queen_talk_btn":
+            await talk_queen(update, context)
+        elif query == "tolkien_talk_btn":
+            await talk_tolkien(update, context)
+    elif query == "end_talk_btn":            # Кнопка "Закінчити"
+        await talk(update, context)          # Перехід в меню Start"
+    elif query == "end_btn":                 # Кнопка "Закінчити"
+        await start(update, context)         # Перехід в меню Start"
 
 # Головне меню
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,44 +59,155 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, text)
     prompt = load_prompt("random")
     content = await chat_gpt.send_question(prompt, "Дай цікавий факт")
-    await send_text_buttons(update, context, content, {
+    await send_text_buttons(update, context, content,{
         "more_btn": "Хочу ще факт",
         "end_btn": "Закінчити"
     })
-# питання до GPT
+
+### 2. *"ChatGPT інтерфейс"*
 async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dialog.mode = "gpt"
     text = load_message("gpt")
     await send_image(update, context, "gpt")
     await send_text(update, context, text)
 
-# отримуємо відповідь від GPT
-async def handle_gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    gpt_message = update.message.text
-    return gpt_message
-    # print(gpt_message)
-
-# отримуємо запитання від користувача та відображаємо в терміналі
+# отримуємо запитання від користувача та ведемо діалоги
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    question = update.message.text
-    print(f"Користувач запитав: {question}") # перевірка тексту запитання
-    if dialog.mode == "gpt":
-        await handle_gpt_message(update, context)
-
-# перевіряємо текст запитання на довжину
-    if len(question) > 500:
-        await send_text(update, context, "Your question is too long.")
+    if update.message and update.message.text:
+        question = update.message.text
+    else:
+        question = "No text found"
+        print("Отримано оновлення без повідомлення")
+    print(f"Користувач запитав: {question}") # перевірка тексту запитання в терміналі
+    if len(question) > 500:   # перевіряємо текст запитання на довжину
+        await send_text(update, context, "Your question is too long, no more 500 characters.")
         return
-# завантажуємо промпт для GPT
-    prompt = load_prompt("gpt")
-# відправляємо промпт та питання до GPT
-    content = await chat_gpt.send_question(prompt, question)
 
-# Надсилання відповіді від GPT користувачу
-    await send_text(update, context, content)
-# отримуємо відповідь від GPT та направляємо в термінал
-    answer = await chat_gpt.send_message_list()
-    print(answer)
+    if dialog.mode == "gpt":
+        prompt = load_prompt("gpt")  # завантажуємо промпт для GPT
+        content = await chat_gpt.send_question(prompt, question)  # відправляємо промпт та питання до GPT
+        await send_text(update, context, content)  # Надсилання відповіді від GPT користувачу
+        answer = await chat_gpt.send_message_list()  # отримуємо відповідь від GPT та направляємо в термінал
+        print(answer)
+
+    elif dialog.mode == "cobain_talk":
+        prompt = load_prompt("talk_cobain")
+        # print(prompt)
+        content = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, content)
+        print(content)
+
+        content = "Якщо хочете перейти до головного меню"
+        await send_text_buttons(update, context, content, {
+                 "end_talk_btn": "Вибрати іншу відому особу",
+                 "end_btn": "Закінчити"
+        })
+    elif dialog.mode == "hawking_talk":
+        prompt = load_prompt("talk_hawking")
+        # print(prompt)
+        content = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, content)
+        print(content)
+
+        content = "Якщо хочете перейти до головного меню"
+        await send_text_buttons(update, context, content, {
+                 "end_talk_btn": "Вибрати іншу відому особу",
+                 "end_btn": "Закінчити"
+        })
+    elif dialog.mode == "nietzsche_talk":
+        prompt = load_prompt("talk_nietzsche")
+        # print(prompt)
+        content = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, content)
+        print(content)
+
+        content = "Якщо хочете перейти до головного меню"
+        await send_text_buttons(update, context, content, {
+                 "end_talk_btn": "Вибрати іншу відому особу",
+                 "end_btn": "Закінчити"
+        })
+
+    elif dialog.mode == "queen_talk":
+        prompt = load_prompt("talk_queen")
+        # print(prompt)
+        content = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, content)
+        print(content)
+
+        content = "Якщо хочете перейти до головного меню"
+        await send_text_buttons(update, context, content, {
+                 "end_talk_btn": "Вибрати іншу відому особу",
+                 "end_btn": "Закінчити"
+        })
+
+    elif dialog.mode == "tolkien_talk":
+        prompt = load_prompt("talk_tolkien")
+        # print(prompt)
+        content = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, content)
+        print(content)
+
+        content = "Якщо хочете перейти до головного меню"
+        await send_text_buttons(update, context, content, {
+                 "end_talk_btn": "Вибрати іншу відому особу",
+                 "end_btn": "Закінчити"
+        })
+
+### 3. "Діалог з відомою особистістю"
+async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "talk"
+    text = load_message("talk")
+    await send_image(update, context, "talk")
+    await send_text(update, context, text)
+    content = "Вибери відому особистість"
+    await send_text_buttons(update, context, content, {
+        "cobain_talk_btn": "Курт Кобейн - Соліст гурту Nirvana",
+        "hawking_talk_btn": "Стівен Гокінг - Фізик",
+        "nietzsche_talk_btn": "Фрідріх Ніцше - Філософ",
+        "queen_talk_btn": "Єлизавета II - Королева Об'єднаного Королівства",
+        "tolkien_talk_btn": "Джон Толкін - Автор книги Володар Перснів",
+        "end_btn": "Закінчити"
+    })
+
+## Курт Кобейн, легендарний фронтмен гурту Nirvana.
+async def talk_cobain(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "cobain_talk"
+    text = "Мене звати Курт Кобейн. Я Соліст гурту Nirvana."
+    await send_image(update, context, "talk_cobain")
+    await send_text(update, context, text)
+    await handle_message(update, context)
+
+## Стівен Гокінг - Фізик
+async def talk_hawking(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "hawking_talk"
+    text = "Мене звати Стівен Гокінг. Я Фізик"
+    await send_image(update, context, "talk_hawking")
+    await send_text(update, context, text)
+    await handle_message(update, context)
+
+## Фрідріх Ніцше - Філософ
+async def talk_nietzsche(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "nietzsche_talk"
+    text = "Мене звати Фрідріх Ніцше - Філософ"
+    await send_image(update, context, "talk_nietzsche")
+    await send_text(update, context, text)
+    await handle_message(update, context)
+
+## Єлизавета II - Королева Об'єднаного Королівства
+async def talk_queen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "queen_talk"
+    text = "Я - Єлизавета II - Королева Об'єднаного Королівства"
+    await send_image(update, context, "talk_queen")
+    await send_text(update, context, text)
+    await handle_message(update, context)
+
+## Джон Толкін - Автор книги "Володар Перснів"
+async def talk_tolkien(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "tolkien_talk"
+    text = "Моє ім'я - Джон Толкін. Я - Автор книги ""Володар Перснів"""
+    await send_image(update, context, "talk_tolkien")
+    await send_text(update, context, text)
+    await handle_message(update, context)
 
 dialog = Dialog()
 dialog.mode = "default"
@@ -90,10 +218,10 @@ app = ApplicationBuilder().token(credentials.BOT_TOKEN).build()
 # Зареєструвати обробник команди можна так:
 app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
-
 app.add_handler(CommandHandler('gpt', gpt))
-app.add_handler(MessageHandler(filters.TEXT, handle_message))
+app.add_handler(CommandHandler('talk', talk))
 
+app.add_handler(MessageHandler(filters.TEXT, handle_message))
 
 # Зареєструвати обробник колбеку можна так:
 # app.add_handler(CallbackQueryHandler(app_button, pattern='^app_.*'))
