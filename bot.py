@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, CommandHandler, MessageHandler, filters, \
     ConversationHandler
 from gpt import ChatGptService
-from util import (load_message, send_text, send_image, show_main_menu, load_prompt, send_text_buttons, Dialog)
+from util import (load_message, send_html, send_text, send_image, show_main_menu, load_prompt, send_text_buttons, Dialog)
 
 import credentials
 
@@ -31,8 +31,13 @@ async def default_callback_handler(update: Update,
             await talk_tolkien(update, context)
     elif query == "end_talk_btn":            # Кнопка "Закінчити"
         await talk(update, context)          # Перехід в меню Start"
+    elif dialog.mode == "quiz":
+        if query == "quiz_prog":
+            dialog.mode = "quiz_prog"
+            await quiz_prog(update, context)
     elif query == "end_btn":                 # Кнопка "Закінчити"
         await start(update, context)         # Перехід в меню Start"
+
 
 # Головне меню
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,7 +56,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     })
 
-# цікавий факт від GPT
+### 1. цікавий факт від GPT
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dialog.mode = "random"
     text = load_message("random")
@@ -73,12 +78,13 @@ async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # отримуємо запитання від користувача та ведемо діалоги
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    correct_answers_count = 0
     if update.message and update.message.text:
         question = update.message.text
     else:
-        question = "No text found"
-        print("Отримано оновлення без повідомлення")
-    print(f"Користувач запитав: {question}") # перевірка тексту запитання в терміналі
+        question = "  "
+    print("Отримано оновлення без повідомлення")
+    print(f"Користувач запитав що: {question}") # перевірка тексту запитання в терміналі
     if len(question) > 500:   # перевіряємо текст запитання на довжину
         await send_text(update, context, "Your question is too long, no more 500 characters.")
         return
@@ -153,6 +159,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  "end_btn": "Закінчити"
         })
 
+    elif dialog.mode == "quiz_prog":
+        prompt = load_prompt("quiz")
+        answer = await chat_gpt.send_question(prompt, question)
+        await send_text(update, context, answer)
+        print(f" GPT answer: {answer}")
+
+        if answer.strip().lower() == "правильно!":
+            correct_answers_count += 1
+            await send_text(update, context, f"Відповідь правильна! ✅ Загальна кількість: {correct_answers_count}")
+        elif answer.strip().lower() == "неправильно!":
+            await send_text(update, context, f"Неправильно. ❌ Правильних відповідей: {correct_answers_count}")
+
+        content = "Щоб продовжити напиши: quiz prog"
+        await send_text_buttons(update, context, content, {
+                 # "quiz_more": "питання на ту ж тему",
+                 "end_btn": "Головне меню"
+        })
+
 ### 3. "Діалог з відомою особистістю"
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dialog.mode = "talk"
@@ -209,8 +233,49 @@ async def talk_tolkien(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, text)
     await handle_message(update, context)
 
+### 4. *"Квіз"*
+async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    dialog.mode = "quiz"
+    text = load_message("quiz")
+    await send_image(update, context, "quiz")
+    await send_text(update, context, text)
+    content = "Обери тему, на яку будеш грати:"
+    await send_text_buttons(update, context, content, {
+        "quiz_prog": "програмування мовою python",
+        "quiz_math": "математичні теорії",
+        "quiz_biology": "біологія",
+        # "quiz_more": "питання на ту ж тему",
+        "end_btn": "Закінчити"
+    })
+
+
+async def quiz_handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    correct_answers_count = 0
+    if update.message and update.message.text:
+        question = update.message.text
+    else:
+        question = "  "
+    print("Отримано оновлення без повідомлення")
+    print(f"Користувач запитав що: {question}")  # перевірка тексту запитання в терміналі
+    if len(question) > 500:  # перевіряємо текст запитання на довжину
+        await send_text(update, context, "Your question is too long, no more 500 characters.")
+        return
+
+## 4.1 *"Квіз"* програмування мовою python
+async def quiz_prog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = "Ти обрав програмування мовою python, щоб почати, напиши: quiz prog"
+    await send_text(update, context, text)
+    load_prompt("quiz")  # завантажуємо промпт для GPT
+    # # question = update.message.text
+    # content = await chat_gpt.send_question(prompt, None)  # відправляємо промпт та питання до GPT
+    # await send_text(update, context, content)  # Надсилання відповіді від GPT користувачу
+    # # answer = await chat_gpt.send_message_list()  # отримуємо відповідь від GPT та направляємо в термінал
+    # # print(f"GPT відповідає: {answer}")
+
+
 dialog = Dialog()
 dialog.mode = "default"
+
 
 chat_gpt = ChatGptService(credentials.ChatGPT_TOKEN)
 app = ApplicationBuilder().token(credentials.BOT_TOKEN).build()
@@ -220,8 +285,10 @@ app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
 app.add_handler(CommandHandler('gpt', gpt))
 app.add_handler(CommandHandler('talk', talk))
+app.add_handler(CommandHandler('quiz', quiz))
 
 app.add_handler(MessageHandler(filters.TEXT, handle_message))
+app.add_handler(MessageHandler(filters.TEXT, quiz_handle_message))
 
 # Зареєструвати обробник колбеку можна так:
 # app.add_handler(CallbackQueryHandler(app_button, pattern='^app_.*'))
